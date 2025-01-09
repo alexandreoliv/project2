@@ -1,0 +1,52 @@
+name: Create EKS Cluster
+
+on:
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
+
+jobs:
+  create-cluster:
+    runs-on: ubuntu-24.04
+
+    steps:
+        - name: Checkout Code
+          uses: actions/checkout@v3
+
+        - name: Configure AWS Credentials
+          uses: aws-actions/configure-aws-credentials@v3
+          with:
+            aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+            aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+            aws-region: ${{ secrets.AWS_REGION }}
+
+        - name: Install eksctl
+          run: |
+            curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp
+            sudo mv /tmp/eksctl /usr/local/bin
+
+        - name: Check if EKS Cluster Exists
+          id: check-cluster
+          run: |
+            eksctl get cluster --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }} || echo "Cluster does not exist"
+
+        - name: Create EKS Cluster
+          if: steps.check-cluster.outputs.result == 'Cluster does not exist'
+          run: |
+            eksctl create cluster --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }} --nodes 2 --node-type t3.medium --managed
+
+        - name: Verify Cluster
+          run: |
+            eksctl get cluster --name ${{ secrets.EKS_CLUSTER_NAME }} --region ${{ secrets.AWS_REGION }}
+          
+        - name: Create Node Group for Application Pods
+          run: |
+            eksctl create nodegroup \
+              --cluster ${{ secrets.EKS_CLUSTER_NAME }} \
+              --name app-nodes \
+              --node-type t3.medium \
+              --nodes 3 \
+              --nodes-min 2 \
+              --nodes-max 5 \
+              --ssh-access \
+              --managed=false \
+              --ssh-public-key ${{ secrets.SSH_PUBLIC_KEY }} \
+              --region ${{ secrets.AWS_REGION }}
