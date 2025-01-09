@@ -23,9 +23,39 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     
+    outputs:
+      ui: ${{ steps.set-changes.outputs.ui }}
+      api: ${{ steps.set-changes.outputs.api }}
+
     steps:
     - name: Checkout repository
       uses: actions/checkout@v2
+
+    - name: Set Changed Paths
+      id: set-changes
+      run: |
+        # Check for changes in specific directories
+        if git diff --name-only ${{ github.base_ref }} ${{ github.head_ref }} | grep -q '^ui/'; then
+          echo "ui=true" >> $GITHUB_ENV
+          echo "::set-output name=ui::true"
+        else
+          echo "ui=false" >> $GITHUB_ENV
+          echo "::set-output name=ui::false"
+        fi
+
+        if git diff --name-only ${{ github.base_ref }} ${{ github.head_ref }} | grep -q '^api/'; then
+          echo "api=true" >> $GITHUB_ENV
+          echo "::set-output name=api::true"
+        else
+          echo "api=false" >> $GITHUB_ENV
+          echo "::set-output name=api::false"
+        fi
+        # Export as outputs
+
+    - name: Print Environment Variables
+      run: |
+        echo "env.ui = ${{ env.ui }}"
+        echo "env.api = ${{ env.api }}"
 
     # Log in to DockerHub
     - name: Log in to DockerHub
@@ -34,27 +64,23 @@ jobs:
         username: ${{ secrets.DOCKER_USERNAME }}
         password: ${{ secrets.DOCKER_PASSWORD }}
 
-    # Build the images
-    - name: Build backend image
+    # Conditionally build and push frontend image
+    - name: Build and Push Frontend Image
+      if: env.ui == 'true'
       run: |
-        docker build -f api/Dockerfile -t alexandrebo/3-tier-application-backend:latest ./api
+        docker build -f ui/Dockerfile -t alexandrebo/3-tier-application-frontend:${{ github.sha }} ./ui
+        docker push alexandrebo/3-tier-application-frontend:${{ github.sha }}
 
-    - name: Build frontend image
+     # Conditionally build and push backend image
+    - name: Build and Push Backend Image
+      if: env.api == 'true'
       run: |
-        docker build -f ui/Dockerfile -t alexandrebo/3-tier-application-frontend:latest ./ui
-
-    # Push the images to DockerHub
-    - name: Push backend image to DockerHub
-      run: |
-        docker push alexandrebo/3-tier-application-backend:latest
-
-    - name: Push frontend image to DockerHub
-      run: |
-        docker push alexandrebo/3-tier-application-frontend:latest
+        docker build -f api/Dockerfile -t alexandrebo/3-tier-application-backend:${{ github.sha }} ./api
+        docker push alexandrebo/3-tier-application-backend:${{ github.sha }}
 
   # Continuous Delivery job
   deploy:
-    # needs: build
+    needs: build
     runs-on: ubuntu-24.04
 
     steps:
@@ -74,6 +100,21 @@ jobs:
     
     - name: Check kubectl version
       run: kubectl version --client 
+
+    - name: Print Environment Variables
+      run: |
+        echo "needs.build.outputs.ui = ${{ needs.build.outputs.ui }}"
+        echo "needs.build.outputs.api = ${{ needs.build.outputs.api }}"
+
+    - name: Update Frontend Deployment Image
+      if: ${{ needs.build.outputs.ui == 'true' }}
+      run: |
+        sed -i "s|image: alexandrebo/3-tier-application-frontend:.*|image: alexandrebo/3-tier-application-frontend:${{ github.sha }}|" ./kubernetes/frontend-deployment-service.yaml
+
+    - name: Update Backend Deployment Image
+      if: ${{ needs.build.outputs.api == 'true' }}
+      run: |
+        sed -i "s|image: alexandrebo/3-tier-application-backend:.*|image: alexandrebo/3-tier-application-backend:${{ github.sha }}|" ./kubernetes/backend-deployment-service.yaml
 
     - name: Deploy to EKS
       run: |
