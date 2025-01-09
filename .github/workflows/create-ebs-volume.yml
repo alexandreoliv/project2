@@ -1,0 +1,30 @@
+name: Create EBS Volume
+
+on:
+  workflow_dispatch: # Allows manual trigger from the GitHub Actions UI
+
+jobs:
+  create-ebs-volume:
+    runs-on: ubuntu-24.04
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v2
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v3
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Create EBS Volume
+      run: |
+        VOLUME_ID=$(aws ec2 create-volume \
+          --size 10 \
+          --availability-zone ${{ secrets.AWS_REGION }}a \
+          --volume-type gp2 \
+          --tag-specifications "ResourceType=volume,Tags=[{Key=Name,Value=alex-database-pv}]" \
+          --output text \
+          --query 'VolumeId')
+        echo "Created EBS volume with ID: $VOLUME_ID"
