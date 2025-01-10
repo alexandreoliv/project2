@@ -147,3 +147,5 @@ jobs:
         kubectl apply -f ./kubernetes/database-deployment-service.yaml
         kubectl apply -f ./kubernetes/frontend-configmap.yaml
         kubectl apply -f ./kubernetes/frontend-deployment-service.yaml
+
+    # commet to trigger CI/CD pipeline
