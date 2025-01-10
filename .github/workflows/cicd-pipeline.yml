@@ -130,14 +130,6 @@ jobs:
         git config --local user.name "GitHub Actions"
         git config --local user.email "actions@github.com"
 
-        # Debugging: Show the current status and staged changes
-        echo "Before any changes:"
-        git status
-        echo "Contents of frontend-deployment-service.yaml before modification:"
-        cat ./kubernetes/frontend-deployment-service.yaml
-        echo "Contents of backend-deployment-service.yaml before modification:"
-        cat ./kubernetes/backend-deployment-service.yaml
-
         # Conditionally add and commit the frontend deployment if UI changed
         if [ "${{ needs.build.outputs.ui }}" == "true" ]; then
           echo "UI has changed, updating frontend image..."
@@ -164,15 +156,10 @@ jobs:
         git status
 
         git commit -m "update Docker image tags for frontend and/or backend"
-        git push origin main
+        git push https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }} HEAD:main
         
         # Debugging: Show the current status and staged changes
         git status
-
-    # - name: Checkout latest commit
-    #   uses: actions/checkout@v2
-    #   with:
-    #     ref: 'main'
 
     - name: Deploy to EKS
       run: |
