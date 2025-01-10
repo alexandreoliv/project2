@@ -60,7 +60,6 @@ jobs:
           echo "The '.github/workflows' directory was changed."
         fi
 
-
     - name: Print Environment Variables
       run: |
         echo "UI changes: ${{ steps.filter.outputs.ui }}"
@@ -115,15 +114,65 @@ jobs:
         echo "needs.build.outputs.ui = ${{ needs.build.outputs.ui }}"
         echo "needs.build.outputs.api = ${{ needs.build.outputs.api }}"
 
-    - name: Update Frontend Deployment Image
-      if: ${{ needs.build.outputs.ui == 'true' }}
-      run: |
-        sed -i "s|image: alexandrebo/3-tier-application-frontend:.*|image: alexandrebo/3-tier-application-frontend:${{ github.sha }}|" ./kubernetes/frontend-deployment-service.yaml
+    # - name: Update Frontend Deployment Image
+    #   if: ${{ needs.build.outputs.ui == 'true' }}
+    #   run: |
+    #     sed -i "s|image: alexandrebo/3-tier-application-frontend:.*|image: alexandrebo/3-tier-application-frontend:${{ github.sha }}|" ./kubernetes/frontend-deployment-service.yaml
 
-    - name: Update Backend Deployment Image
-      if: ${{ needs.build.outputs.api == 'true' }}
+    # - name: Update Backend Deployment Image
+    #   if: ${{ needs.build.outputs.api == 'true' }}
+    #   run: |
+    #     sed -i "s|image: alexandrebo/3-tier-application-backend:.*|image: alexandrebo/3-tier-application-backend:${{ github.sha }}|" ./kubernetes/backend-deployment-service.yaml
+
+    - name: Change and commit changes to Kubernetes YAML files
+      if: ${{ needs.build.outputs.ui == 'true' || needs.build.outputs.api == 'true' }}
       run: |
-        sed -i "s|image: alexandrebo/3-tier-application-backend:.*|image: alexandrebo/3-tier-application-backend:${{ github.sha }}|" ./kubernetes/backend-deployment-service.yaml
+        git config --local user.name "GitHub Actions"
+        git config --local user.email "actions@github.com"
+
+        # Debugging: Show the current status and staged changes
+        echo "Before any changes:"
+        git status
+        echo "Contents of frontend-deployment-service.yaml before modification:"
+        cat ./kubernetes/frontend-deployment-service.yaml
+        echo "Contents of backend-deployment-service.yaml before modification:"
+        cat ./kubernetes/backend-deployment-service.yaml
+
+        # Conditionally add and commit the frontend deployment if UI changed
+        if [ "${{ needs.build.outputs.ui }}" == "true" ]; then
+          echo "UI has changed, updating frontend image..."
+          sed -i "s|image: alexandrebo/3-tier-application-frontend:.*|image: alexandrebo/3-tier-application-frontend:${{ github.sha }}|" ./kubernetes/frontend-deployment-service.yaml
+          echo "Frontend image updated in frontend-deployment-service.yaml."
+          echo "Contents of frontend-deployment-service.yaml AFTER modification:"
+          cat ./kubernetes/frontend-deployment-service.yaml
+          git add ./kubernetes/frontend-deployment-service.yaml
+          git status
+        fi
+
+        # Conditionally add and commit the backend deployment if API changed
+        if [ "${{ needs.build.outputs.api }}" == "true" ]; then
+          echo "API has changed, updating backend image..."
+          sed -i "s|image: alexandrebo/3-tier-application-backend:.*|image: alexandrebo/3-tier-application-backend:${{ github.sha }}|" ./kubernetes/backend-deployment-service.yaml
+          echo "Backend image updated in backend-deployment-service.yaml."
+          echo "Contents of backend-deployment-service.yaml AFTER modification:"
+          cat ./kubernetes/backend-deployment-service.yaml
+          git add ./kubernetes/backend-deployment-service.yaml
+          git status
+        fi
+
+        # Debugging: Show the current status and staged changes
+        git status
+
+        git commit -m "update Docker image tags for frontend and/or backend"
+        git push origin main
+        
+        # Debugging: Show the current status and staged changes
+        git status
+
+    # - name: Checkout latest commit
+    #   uses: actions/checkout@v2
+    #   with:
+    #     ref: 'main'
 
     - name: Deploy to EKS
       run: |
