@@ -21,7 +21,7 @@ spec:
                 path: config.json
       containers:
         - name: frontend
-          image: alexandrebo/3-tier-application-frontend
+          image: alexandrebo/3-tier-application-frontend:latest
           ports:
             - containerPort: 80
           resources:
